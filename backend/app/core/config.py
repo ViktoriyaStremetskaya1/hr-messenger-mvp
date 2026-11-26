@@ -28,6 +28,20 @@ class Settings(BaseSettings):
 
     data_retention_days: int = 365
 
+    # ---- WhatsApp Business Cloud API ----
+    # Базовый URL Graph API. В песочнице указывает на wa-mock (http://wa-mock:9000)
+    wa_api_base: str = "https://graph.facebook.com"
+    wa_api_version: str = "v23.0"
+    wa_phone_number_id: str = ""
+    wa_business_account_id: str = ""  # WABA ID — для синхронизации шаблонов
+    wa_access_token: str = ""
+    wa_app_secret: str = ""  # для проверки подписи webhook (X-Hub-Signature-256)
+    wa_verify_token: str = ""  # для подтверждения webhook в кабинете Meta
+    wa_display_phone: str = ""  # номер отправителя — только для отображения
+
+    # Выполнять фоновые задачи прямо в запросе (тесты/отладка), без воркера
+    tasks_inline: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

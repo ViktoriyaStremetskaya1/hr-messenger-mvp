@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, candidates, tags, users, vacancies
+from app.api import admin, auth, candidates, messaging, tags, users, vacancies, webhooks
 from app.core.config import get_settings
 from app.core.logging import setup_logging
+from app.services import messaging as _messaging  # noqa: F401  регистрирует фоновые задачи
 
 setup_logging()
 settings = get_settings()
@@ -17,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, users.router, vacancies.router, tags.router, candidates.router, admin.router):
+for r in (auth.router, users.router, vacancies.router, tags.router, candidates.router, admin.router, messaging.router, webhooks.router):
     app.include_router(r, prefix="/api")
 
 

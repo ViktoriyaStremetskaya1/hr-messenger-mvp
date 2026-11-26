@@ -27,3 +27,30 @@ class ScreeningResult(StrEnum):
 class Language(StrEnum):
     ru = "ru"
     kk = "kk"
+
+
+class Channel(StrEnum):
+    whatsapp = "whatsapp"
+    telegram = "telegram"  # на будущее
+
+
+class Direction(StrEnum):
+    inbound = "in"
+    outbound = "out"
+
+
+class MessageStatus(StrEnum):
+    queued = "queued"
+    sent = "sent"
+    delivered = "delivered"
+    read = "read"
+    failed = "failed"
+    received = "received"  # входящее
+
+
+STATUS_RANK = {"queued": 0, "sent": 1, "delivered": 2, "read": 3}
+
+
+class ConversationMode(StrEnum):
+    bot = "bot"
+    human = "human"

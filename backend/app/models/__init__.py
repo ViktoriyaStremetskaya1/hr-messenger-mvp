@@ -3,10 +3,22 @@ from app.models.entities import (  # noqa: F401
     Application,
     AuditLog,
     Candidate,
+    Conversation,
+    Message,
+    MessageTemplate,
+    WebhookEvent,
     ImportJob,
     Tag,
     User,
     Vacancy,
     candidate_tags,
 )
-from app.models.enums import ApplicationStatus, Role, ScreeningResult  # noqa: F401
+from app.models.enums import (  # noqa: F401
+    ApplicationStatus,
+    Channel,
+    ConversationMode,
+    Direction,
+    MessageStatus,
+    Role,
+    ScreeningResult,
+)

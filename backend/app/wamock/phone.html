@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Телефон кандидата</title>
+<style>
+  :root { --bg:#efeae2; --panel:#fff; --line:#e5e5e5; --out:#ffffff; --in:#d9fdd3; --accent:#00a884; --text:#111b21; --muted:#667781; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color:var(--text); background:#d1d7db; }
+  .app { display:grid; grid-template-columns: 300px 1fr; height:100vh; max-width:1100px; margin:0 auto; background:var(--panel); }
+  .side { border-right:1px solid var(--line); display:flex; flex-direction:column; min-height:0; }
+  .side h1 { font-size:16px; margin:0; padding:14px 16px; background:#f0f2f5; }
+  .side .hint { color:var(--muted); font-size:12px; padding:0 16px 10px; background:#f0f2f5; }
+  form.new { padding:10px 12px; display:grid; gap:6px; border-bottom:1px solid var(--line); }
+  input, textarea { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; width:100%; }
+  button { font:inherit; cursor:pointer; border:0; border-radius:8px; padding:8px 12px; background:var(--accent); color:#fff; }
+  button.ghost { background:#fff; color:#027eb5; border:1px solid var(--line); }
+  .list { overflow:auto; flex:1; }
+  .item { padding:12px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .item.active, .item:hover { background:#f5f6f6; }
+  .item small { color:var(--muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .main { display:flex; flex-direction:column; min-height:0; background:var(--bg); }
+  .top { background:#f0f2f5; padding:10px 16px; display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .msgs { flex:1; overflow:auto; padding:16px 6%; display:flex; flex-direction:column; gap:6px; }
+  .b { max-width:70%; padding:6px 9px 4px; border-radius:8px; box-shadow:0 1px .5px rgba(0,0,0,.13); white-space:pre-wrap; }
+  .b.out { background:var(--out); align-self:flex-start; }
+  .b.in { background:var(--in); align-self:flex-end; }
+  .meta { font-size:11px; color:var(--muted); text-align:right; margin-top:2px; }
+  .btns { display:grid; gap:4px; margin-top:6px; }
+  .btns button { background:#fff; color:#027eb5; border-top:1px solid var(--line); border-radius:0; padding:8px; }
+  .rows { display:none; margin-top:6px; border-top:1px solid var(--line); }
+  .rows.open { display:block; }
+  .row { padding:8px 4px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .row small { color:var(--muted); display:block; }
+  .compose { display:flex; gap:8px; padding:10px 16px; background:#f0f2f5; }
+  .empty { margin:auto; color:var(--muted); text-align:center; padding:20px; }
+  @media (max-width: 700px) { .app { grid-template-columns: 1fr; } .side { max-height:40vh; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <h1>📱 Песочница WhatsApp</h1>
+    <div class="hint">Вы — кандидат. Сообщения уходят в приложение как настоящие webhooks.</div>
+    <form class="new" id="newForm">
+      <input id="nPhone" placeholder="Телефон кандидата, +7 7…" required>
+      <input id="nName" placeholder="Имя в WhatsApp">
+      <input id="nText" placeholder="Первое сообщение (например «Здравствуйте»)">
+      <button>Написать от кандидата</button>
+    </form>
+    <div class="list" id="list"></div>
+  </aside>
+  <main class="main">
+    <div class="top"><b id="title">Выберите чат</b>
+      <span><button class="ghost" id="expireBtn" title="Сдвинуть последнее входящее на 25 ч назад — только в моке">Закрыть окно 24 ч</button></span></div>
+    <div class="msgs" id="msgs"><div class="empty">Слева появятся чаты, когда приложение отправит сообщение,<br>или начните диалог от имени кандидата.</div></div>
+    <form class="compose" id="compose"><input id="text" placeholder="Сообщение" autocomplete="off"><button>➤</button></form>
+  </main>
+</div>
+<script>
+let chats = [], current = null, lastSig = '';
+const $ = (id) => document.getElementById(id);
+const fmt = (ts) => new Date(ts * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+const ticks = { accepted: '🕓', sent: '✓', delivered: '✓✓', read: '✓✓ прочитано' };
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  return r.json();
+}
+async function reply(text, reply_id, reply_kind) {
+  if (!current) return;
+  await api('/mock/inbound', { wa_id: current, text, reply_id, reply_kind });
+  await load();
+}
+function renderList() {
+  $('list').innerHTML = chats.map((c) => {
+    const last = c.messages[c.messages.length - 1];
+    return `<div class="item ${c.wa_id === current ? 'active' : ''}" data-id="${c.wa_id}"><b>${esc(c.name)}</b><small>+${c.wa_id}</small><small>${esc(last?.text ?? '')}</small></div>`;
+  }).join('');
+  document.querySelectorAll('.item').forEach((el) => el.onclick = () => { current = el.dataset.id; lastSig = ''; render(); api('/mock/read/' + current, {}); });
+}
+function render() {
+  renderList();
+  const c = chats.find((x) => x.wa_id === current);
+  if (!c) return;
+  $('title').textContent = `${c.name} · +${c.wa_id}`;
+  const sig = JSON.stringify(c.messages);
+  if (sig === lastSig) return;
+  lastSig = sig;
+  $('msgs').innerHTML = c.messages.map((m, i) => {
+    let extra = '';
+    if (m.buttons) extra = `<div class="btns">${m.buttons.map((b) => `<button data-i="${i}" data-id="${esc(b.id)}" data-t="${esc(b.title)}" data-k="${b.quick ? 'quick' : 'button'}">${esc(b.title)}</button>`).join('')}</div>`;
+    if (m.rows) extra = `<div class="btns"><button data-open="${i}">☰ ${esc(m.list_label)}</button></div><div class="rows" id="rows${i}">${m.rows.map((r) => `<div class="row" data-id="${esc(r.id)}" data-t="${esc(r.title)}">${esc(r.title)}${r.description ? `<small>${esc(r.description)}</small>` : ''}</div>`).join('')}</div>`;
+    return `<div class="b ${m.dir}">${esc(m.text)}${extra}<div class="meta">${fmt(m.ts)} ${m.dir === 'out' ? '' : (ticks[m.status] ?? '')}</div></div>`;
+  }).join('');
+  $('msgs').scrollTop = $('msgs').scrollHeight;
+  document.querySelectorAll('.btns button[data-id]').forEach((b) => b.onclick = () => reply(b.dataset.t, b.dataset.id, b.dataset.k));
+  document.querySelectorAll('button[data-open]').forEach((b) => b.onclick = () => $('rows' + b.dataset.open).classList.toggle('open'));
+  document.querySelectorAll('.row').forEach((r) => r.onclick = () => reply(r.dataset.t, r.dataset.id, 'list'));
+}
+async function load() {
+  chats = await api('/mock/chats');
+  render();
+  if (current) {
+    const c = chats.find((x) => x.wa_id === current);
+    if (c && c.messages.some((m) => m.dir === 'out' && m.status === 'delivered')) api('/mock/read/' + current, {});
+  }
+}
+$('newForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const r = await api('/mock/inbound', { wa_id: $('nPhone').value, name: $('nName').value || null, text: $('nText').value || 'Здравствуйте' });
+  current = r.wa_id; lastSig = ''; e.target.reset(); await load();
+};
+$('compose').onsubmit = async (e) => { e.preventDefault(); const t = $('text').value.trim(); if (!t) return; $('text').value = ''; await reply(t); };
+$('expireBtn').onclick = async () => { if (current) { await api('/mock/expire/' + current, {}); alert('В моке окно закрыто. Свободный текст из приложения теперь вернёт ошибку 131047.'); } };
+load(); setInterval(load, 1500);
+</script>
+</body>
+</html>
