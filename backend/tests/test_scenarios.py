@@ -130,9 +130,9 @@ async def test_offer_happy_path_kazakh(admin, wa_mock, setup, db):
     assert out[-1]["text"].startswith("Кеңсе мекенжайы: пр. Абая, 10")  # порядок сохранён: детали → вопрос
     for title in ("Иә", "Иә", "1 жылдан көп", "Бір апта ішінде"):
         await tap(admin, wa_mock, title)
-    assert "сіз бізге сәйкессіз" in phone(wa_mock)[-1]["text"]
+    assert "сұхбатқа бос уақыт жоқ" in phone(wa_mock)[-1]["text"]  # слотов нет — передаём рекрутеру
     st = await state(admin, c["id"])
-    assert st["scenario"]["outcome"] == "handoff" and st["scenario"]["reason"] == "запись на собеседование"
+    assert st["scenario"]["outcome"] == "handoff" and st["scenario"]["reason"] == "нет свободных слотов"
     assert st["conversation"]["mode"] == "human"
     assert st["scenario"]["answers"] == {"interested": "Иә, қызық", "city_ok": "Иә", "schedule_ok": "Иә",
                                          "experience": "1 жылдан көп", "start": "Бір апта ішінде"}

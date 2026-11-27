@@ -20,8 +20,9 @@
 - language       — выбор языка ru/kk (пропускается, если язык известен); next
 - vacancy_choice — выбор вакансии из активных в городе кандидата (список); text, next, empty
 - condition      — ветвление: rules[{var, op, value, next}], else. op: eq neq in not_in gte lte contains empty not_empty
-- set            — screening (fit|unfit|review), status, reserve (bool), vars{}; next
-- booking        — запись на собеседование (этап 5; пока — передача рекрутеру): text
+- set            — screening (fit|unfit|review), status, reserve (bool), vars{}, interview (confirm|cancel); next
+- booking        — запись на собеседование: список свободных слотов (до 9) + «нет удобного времени»;
+                   text, confirm_text, no_slots_text, next (необязательно)
 - handoff        — передача рекрутеру: text, reason
 - end            — завершение: text (необязательно)
 """
@@ -44,7 +45,7 @@ log = logging.getLogger(__name__)
 
 NODE_TYPES = {"message", "template", "buttons", "question", "language", "vacancy_choice", "condition", "set",
               "booking", "handoff", "end"}
-WAITING_TYPES = {"template", "buttons", "question", "language", "vacancy_choice"}
+WAITING_TYPES = {"template", "buttons", "question", "language", "vacancy_choice", "booking"}
 OPS = {"eq", "neq", "in", "not_in", "gte", "lte", "contains", "empty", "not_empty"}
 MAX_STEPS = 50
 MAX_RETRIES = 2
@@ -53,6 +54,17 @@ REPROMPT = {"ru": "Пожалуйста, выберите один из вари
 REPROMPT_NUMBER = {"ru": "Пожалуйста, ответьте числом.", "kk": "Сан түрінде жауап беріңіз."}
 HANDOFF_DEFAULT = {"ru": "Спасибо! Рекрутер свяжется с вами в ближайшее время.",
                    "kk": "Рақмет! Рекрутер жақын арада сізбен байланысады."}
+BOOKING_TEXT = {"ru": "Выберите удобное время собеседования 👇", "kk": "Сұхбатқа ыңғайлы уақытты таңдаңыз 👇"}
+BOOKING_CONFIRM = {
+    "ru": "Готово! Вы записаны на собеседование {interview_date} в {interview_time}.\n📍 {address}\nМы напомним за день и за 2 часа. Если планы изменятся — просто напишите нам.",
+    "kk": "Дайын! Сіз сұхбатқа жазылдыңыз: {interview_date}, сағат {interview_time}.\n📍 {address}\nБір күн және 2 сағат бұрын еске саламыз. Жоспарыңыз өзгерсе — бізге жазыңыз.",
+}
+BOOKING_NO_SLOTS = {"ru": "Сейчас свободного времени для собеседования нет — рекрутер свяжется с вами и предложит время.",
+                    "kk": "Қазір сұхбатқа бос уақыт жоқ — рекрутер хабарласып, уақыт ұсынады."}
+BOOKING_OTHER = {"ru": "Нет удобного времени", "kk": "Ыңғайлы уақыт жоқ"}
+BOOKING_OTHER_REPLY = {"ru": "Хорошо! Рекрутер свяжется с вами и подберёт другое время.",
+                       "kk": "Жақсы! Рекрутер хабарласып, басқа уақыт ұсынады."}
+SLOT_TAKEN = {"ru": "Это время только что заняли 😔 Выберите, пожалуйста, другое.", "kk": "Бұл уақытты жаңа ғана біреу алды 😔 Басқасын таңдаңыз."}
 LANG_BUTTONS = [Button("lang:ru", "Русский"), Button("lang:kk", "Қазақша")]
 LANG_TEXT = "Выберите язык общения / Сөйлесу тілін таңдаңыз:"
 
@@ -118,6 +130,10 @@ def validate_graph(graph: dict[str, Any], template_names: set[tuple[str, str]] |
             errors.append(f"Шаг «{nid}»: неверный результат скрининга")
         if t == "vacancy_choice":
             ref(nid, "empty", n.get("empty"), required=False)
+        if t == "booking":
+            ref(nid, "next", n.get("next"), required=False)
+        if t == "set" and n.get("interview") not in (None, "confirm", "cancel"):
+            errors.append(f"Шаг «{nid}»: неверное действие с собеседованием")
     return errors
 
 
@@ -430,17 +446,43 @@ async def run(db: AsyncSession, conv: Conversation) -> list[int]:
                     app.status = node["status"]
                 if "reserve" in node:
                     candidate.is_reserve = bool(node["reserve"])  # type: ignore[union-attr]
+                if node.get("interview"):
+                    from app.models import Interview
+                    from app.services import interviews
+
+                    iid = ((conv.context or {}).get("extra") or {}).get("interview_id")
+                    iv = await db.get(Interview, iid) if iid else None
+                    if iv is not None and iv.status == "booked":
+                        if node["interview"] == "confirm":
+                            iv.confirmed_at = datetime.now(UTC)
+                        else:
+                            await interviews.set_status(db, iv, "cancelled", reason="отменил кандидат")
                 if node.get("vars"):
                     vars_ = dict((conv.context or {}).get("vars") or {})
                     vars_.update({k: {"value": val, "label": val} for k, val in node["vars"].items()})
                     _ctx(conv, vars=vars_)
                 _goto(conv, node.get("next"))
-            elif t in ("handoff", "booking"):
+            elif t == "booking":
+                from app.services import interviews
+
+                slots = await interviews.available_slots(db, (conv.context or {}).get("vacancy_id"))
+                if not slots:
+                    ids.append(await _send(db, conv, OutText(render(tr(node.get("no_slots_text") or BOOKING_NO_SLOTS, lang), v))))
+                    _finish(conv, "handoff", "нет свободных слотов")
+                    conv.mode = "human"
+                    continue
+                rows = []
+                for sl in slots:
+                    addr = await interviews.slot_address(db, sl, (conv.context or {}).get("vacancy_id"))
+                    rows.append(ListRow(f"{nid}:slot:{sl.id}", f"{interviews.fmt_date(sl.starts_at, lang)} · {interviews.fmt_time(sl.starts_at)}", addr))
+                rows.append(ListRow(f"{nid}:other", tr(BOOKING_OTHER, lang)))
+                ids.append(await _send(db, conv, OutList(text or tr(BOOKING_TEXT, lang), "Время" if lang == "ru" else "Уақыт", rows,
+                                                         section_title="Свободное время" if lang == "ru" else "Бос уақыт")))
+                await _wait(conv, node)
+            elif t == "handoff":
                 msg = text or tr(HANDOFF_DEFAULT, lang)
                 ids.append(await _send(db, conv, OutText(msg)))
-                if t == "booking" and (rcp := await campaign_recipient(db, conv)) and not rcp.booked_at:
-                    rcp.booked_at = datetime.now(UTC)  # до этапа 5 — «готов к записи»
-                _finish(conv, "handoff", node.get("reason") or ("запись на собеседование" if t == "booking" else None))
+                _finish(conv, "handoff", node.get("reason"))
                 conv.mode = "human"
             elif t == "end":
                 if text:
@@ -477,6 +519,9 @@ async def _reprompt(db: AsyncSession, conv: Conversation, node_id: str, node: di
         return [await _send(db, conv, OutText(tr(HANDOFF_DEFAULT, lang)))]
     _ctx(conv, retries=retries)
     t = node["type"]
+    if t == "booking":
+        _ctx(conv, waiting=False)
+        return await run(db, conv)
     if t in ("template", "buttons"):
         return [await _send(db, conv, _options_out(node_id, tr(texts, lang), node["options"], lang, "Выбрать"))]
     if t == "language":
@@ -524,6 +569,41 @@ async def handle_inbound(db: AsyncSession, conv: Conversation, m: InboundMessage
                 return await _reprompt(db, conv, nid, node, lang)  # type: ignore[arg-type]
             await _store_answer(db, conv, node.get("var"), answer, answer, question)
             _goto(conv, node.get("next"))
+        elif t == "booking":
+            from app.services import interviews
+
+            rid = m.reply_id or ""
+            if rid == f"{nid}:other" or (m.text or "").strip().casefold() in {x.casefold() for x in BOOKING_OTHER.values()}:
+                ids = [await _send(db, conv, OutText(tr(BOOKING_OTHER_REPLY, lang)))]
+                _finish(conv, "handoff", "кандидату не подошло время")
+                conv.mode = "human"
+                return ids
+            if not rid.startswith(f"{nid}:slot:"):
+                return await _reprompt(db, conv, nid, node, lang)  # type: ignore[arg-type]
+            slot_id = int(rid.rsplit(":", 1)[1])
+            replaces = ((conv.context or {}).get("extra") or {}).get("interview_id")
+            try:
+                async with db.begin_nested():
+                    iv = await interviews.book(db, candidate_id=conv.candidate_id, slot_id=slot_id,
+                                               vacancy_id=(conv.context or {}).get("vacancy_id"), via="bot", replaces=replaces)
+            except interviews.SlotUnavailable:
+                ids = [await _send(db, conv, OutText(tr(SLOT_TAKEN, lang)))]
+                return ids + await _reprompt(db, conv, nid, node, lang)  # type: ignore[arg-type]
+            sl = iv.slot
+            addr = await interviews.slot_address(db, sl, (conv.context or {}).get("vacancy_id"))
+            extra = {**((conv.context or {}).get("extra") or {}), "interview_id": iv.id,
+                     "interview_date": interviews.fmt_date(sl.starts_at, lang), "interview_time": interviews.fmt_time(sl.starts_at),
+                     "address": addr}
+            _ctx(conv, extra=extra)
+            await _store_answer(db, conv, node.get("var") or "interview", str(iv.id),
+                                f"{extra['interview_date']} {extra['interview_time']}", question)
+            v2 = await build_vars(db, conv, candidate)  # type: ignore[arg-type]
+            ids = [await _send(db, conv, OutText(render(tr(node.get("confirm_text") or BOOKING_CONFIRM, lang), v2)))]
+            if node.get("next"):
+                _goto(conv, node["next"])
+                return ids + await run(db, conv)
+            _finish(conv, "booked")
+            return ids
         elif t == "vacancy_choice":
             rid = m.reply_id or ""
             if not rid.startswith(f"{nid}:vac:"):

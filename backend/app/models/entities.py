@@ -300,3 +300,41 @@ class CampaignRecipient(Base):
     replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     screening_result: Mapped[str | None] = mapped_column(String(8))
     booked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class InterviewSlot(Base):
+    """Слот рекрутера для собеседования. capacity > 1 — групповое собеседование."""
+
+    __tablename__ = "interview_slots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    recruiter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    vacancy_id: Mapped[int | None] = mapped_column(ForeignKey("vacancies.id", ondelete="SET NULL"), index=True)  # null — любая
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    capacity: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    office_address: Mapped[str | None] = mapped_column(Text)  # пусто — адрес из вакансии
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = _now_col()
+
+
+class Interview(Base):
+    __tablename__ = "interviews"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    slot_id: Mapped[int] = mapped_column(ForeignKey("interview_slots.id", ondelete="CASCADE"), index=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("candidates.id", ondelete="CASCADE"), index=True)
+    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    # booked | attended | no_show | cancelled | rescheduled
+    status: Mapped[str] = mapped_column(String(16), default="booked", server_default="booked", index=True)
+    booked_via: Mapped[str] = mapped_column(String(16), default="bot")  # bot | recruiter
+    booked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminded_24h_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reminded_2h_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cancel_reason: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = _now_col()
+
+    slot: Mapped[InterviewSlot] = relationship(lazy="selectin")

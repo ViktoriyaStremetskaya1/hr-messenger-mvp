@@ -34,6 +34,10 @@ from app.whatsapp_templates import as_meta_records  # noqa: E402
 
 PASSWORD = "Passw0rd!"
 
+import logging  # noqa: E402
+
+logging.getLogger("wa-mock").setLevel(logging.ERROR)  # в тестах webhook мока уходит «в никуда»
+
 
 @pytest.fixture(scope="session", autouse=True)
 async def _schema():

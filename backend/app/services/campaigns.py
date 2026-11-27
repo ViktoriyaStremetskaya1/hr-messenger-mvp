@@ -165,11 +165,12 @@ async def stats(db: AsyncSession, campaign_id: int) -> dict[str, Any]:
     delivered = ms.get("delivered", 0) + ms.get("read", 0)
     agg = (await db.execute(select(
         func.count(CampaignRecipient.replied_at), func.count().filter(CampaignRecipient.screening_result == "fit"),
-        func.count(CampaignRecipient.booked_at)).where(CampaignRecipient.campaign_id == campaign_id))).one()
-    replied, fit, booked = agg
+        func.count(CampaignRecipient.booked_at), func.count(CampaignRecipient.attended_at))
+        .where(CampaignRecipient.campaign_id == campaign_id))).one()
+    replied, fit, booked, attended = agg
     total = sum(by_status.values())
     return {
         "total": total, "queued": by_status.get("queued", 0), "sent": by_status.get("sent", 0),
         "skipped": by_status.get("skipped", 0), "skipped_by_reason": skipped, "failed": by_status.get("failed", 0) + ms.get("failed", 0),
-        "delivered": delivered, "read": ms.get("read", 0), "replied": replied, "screening_fit": fit, "booked": booked,
+        "delivered": delivered, "read": ms.get("read", 0), "replied": replied, "screening_fit": fit, "booked": booked, "attended": attended,
     }

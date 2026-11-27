@@ -11,6 +11,8 @@ from app.models.entities import (  # noqa: F401
     Scenario,
     WebhookEvent,
     ImportJob,
+    Interview,
+    InterviewSlot,
     Tag,
     User,
     Vacancy,

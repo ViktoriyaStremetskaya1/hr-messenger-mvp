@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, campaigns, candidates, messaging, scenarios, tags, users, vacancies, webhooks
+from app.api import admin, auth, campaigns, candidates, interviews, messaging, scenarios, tags, users, vacancies, webhooks
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.services import messaging as _messaging  # noqa: F401  регистрирует фоновые задачи
@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth.router, users.router, vacancies.router, tags.router, candidates.router, admin.router, messaging.router, webhooks.router, scenarios.router, campaigns.router):
+for r in (auth.router, users.router, vacancies.router, tags.router, candidates.router, admin.router, messaging.router, webhooks.router, scenarios.router, campaigns.router, interviews.router):
     app.include_router(r, prefix="/api")
 
 

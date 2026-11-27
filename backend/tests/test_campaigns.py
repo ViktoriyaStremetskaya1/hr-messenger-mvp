@@ -92,7 +92,7 @@ async def test_campaign_end_to_end(admin, anon, env, db, wa_mock):
         mock_store.chat(sent_to[0])["last_inbound"] = time.time()
         await post_webhook(anon, button_reply(sent_to[0], btn["id"], title))
     st = (await admin.get(f"/api/campaigns/{camp['id']}")).json()["stats"]
-    assert st["replied"] == 1 and st["screening_fit"] == 1 and st["booked"] == 1
+    assert st["replied"] == 1 and st["screening_fit"] == 1 and st["booked"] == 0  # слотов нет — не записан
     # кандидаты помечены касанием — повторная рассылка сразу всех пропустит по частоте
     camp2 = (await admin.post("/api/campaigns", json=body(env, name="Повтор"))).json()
     await admin.post(f"/api/campaigns/{camp2['id']}/launch")
