@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { api, type Application, type Candidate } from '../api';
+import CandidateInterviews from './CandidateInterviews';
 import Chat from './Chat';
 import { notifyError, notifyOk, useTags, useUsers, vacancyLabel, useVacancies } from '../hooks';
 import { dt, screeningOptions, statusOptions } from '../labels';
@@ -136,6 +137,8 @@ export default function CandidateDrawer({ id, onClose }: { id: number | null; on
               data={(vacancies.data ?? []).filter((v) => v.is_active && !linked.has(v.id)).map((v) => ({ value: String(v.id), label: vacancyLabel(v) }))} />
             <Button variant="light" disabled={!addVac} onClick={() => addApp.mutate()} loading={addApp.isPending}>Добавить</Button>
           </Group>
+          <Divider label="Собеседования" />
+          <CandidateInterviews candidateId={c.id} vacancyId={c.applications[0]?.vacancy.id ?? null} />
           <Group gap="xs"><Badge variant="light">создан {dt(c.created_at)}</Badge>
             {c.last_touch_at && <Badge variant="light">последнее касание {dt(c.last_touch_at)}</Badge>}</Group>
         </Stack>

@@ -226,7 +226,7 @@ export interface CampaignSegment {
 }
 export interface CampaignStats {
   total: number; queued: number; sent: number; skipped: number; skipped_by_reason: Record<string, number>;
-  failed: number; delivered: number; read: number; replied: number; screening_fit: number; booked: number;
+  failed: number; delivered: number; read: number; replied: number; screening_fit: number; booked: number; attended: number;
 }
 export interface Campaign {
   id: number;
@@ -254,4 +254,16 @@ export interface CampaignRecipient {
 }
 export interface SegmentPreview {
   total: number; eligible: number; excluded: Record<string, number>; sample: string[];
+}
+
+export interface SlotBooking { interview_id: number; candidate_id: number; candidate_name: string; status: string; confirmed_at: string | null }
+export interface Slot {
+  id: number; recruiter_id: number; recruiter_name: string; vacancy_id: number | null; vacancy_title: string | null;
+  starts_at: string; ends_at: string; capacity: number; office_address: string | null; is_active: boolean; booked: number;
+  bookings: SlotBooking[];
+}
+export interface Interview {
+  id: number; slot_id: number; candidate_id: number; candidate_name: string; starts_at: string; ends_at: string; address: string;
+  recruiter_name: string; vacancy_title: string | null; status: 'booked' | 'attended' | 'no_show' | 'cancelled' | 'rescheduled';
+  booked_via: string; confirmed_at: string | null; reminded_24h_at: string | null; reminded_2h_at: string | null;
 }

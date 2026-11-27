@@ -12,6 +12,7 @@ import ScenariosPage from './pages/Scenarios';
 import ScenarioEditor from './pages/ScenarioEditor';
 import CampaignsPage from './pages/Campaigns';
 import CampaignDetail from './pages/CampaignDetail';
+import InterviewsPage from './pages/Interviews';
 import UsersPage from './pages/Users';
 import VacanciesPage from './pages/Vacancies';
 
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/scenarios/:id" element={<ScenarioEditor />} />
         <Route path="/campaigns" element={<CampaignsPage />} />
         <Route path="/campaigns/:id" element={<CampaignDetail />} />
+        <Route path="/slots" element={<InterviewsPage />} />
         {can('admin') && <Route path="/users" element={<UsersPage />} />}
         {can('admin', 'lead') && <Route path="/audit" element={<AuditPage />} />}
         <Route path="*" element={<Navigate to="/candidates" replace />} />

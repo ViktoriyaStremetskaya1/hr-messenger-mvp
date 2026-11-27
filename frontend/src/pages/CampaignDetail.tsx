@@ -42,7 +42,7 @@ export default function CampaignDetail() {
   const sent = s.sent ?? 0;
   const funnel: [string, number | undefined][] = [
     ['Отправлено', s.sent], ['Доставлено', s.delivered], ['Прочитано', s.read], ['Ответили', s.replied],
-    ['Прошли скрининг', s.screening_fit], ['Записаны', s.booked],
+    ['Прошли скрининг', s.screening_fit], ['Записаны', s.booked], ['Пришли', s.attended],
   ];
 
   return (

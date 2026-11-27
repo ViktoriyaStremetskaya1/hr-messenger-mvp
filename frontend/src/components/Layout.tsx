@@ -43,7 +43,7 @@ export default function Layout() {
     { to: '/templates', label: 'Шаблоны WhatsApp', icon: <IconBrandWhatsapp size={18} /> },
     { to: '/scenarios', label: 'Сценарии', icon: <IconRoute size={18} /> },
     { to: '/campaigns', label: 'Рассылки', icon: <IconSend size={18} /> },
-    { to: '/slots', label: 'Собеседования', icon: <IconCalendar size={18} />, soon: 'Этап 5' },
+    { to: '/slots', label: 'Собеседования', icon: <IconCalendar size={18} /> },
     { to: '/analytics', label: 'Аналитика', icon: <IconChartFunnel size={18} />, soon: 'Этап 7' },
     { to: '/users', label: 'Пользователи', icon: <IconUsers size={18} />, show: can('admin') },
     { to: '/audit', label: 'Журнал действий', icon: <IconHistory size={18} />, show: can('admin', 'lead') },
