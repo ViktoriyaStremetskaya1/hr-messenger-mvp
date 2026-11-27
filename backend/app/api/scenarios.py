@@ -208,6 +208,7 @@ async def return_to_bot(candidate_id: int, db: AsyncSession = Depends(get_sessio
     if conv is None:
         raise HTTPException(404, "Диалога нет")
     conv.mode = "bot"
+    conv.needs_reply = False
     await log_action(db, user_id=user.id, action="conversation.to_bot", entity="candidate", entity_id=candidate_id)
     await db.commit()
     return {"ok": True}

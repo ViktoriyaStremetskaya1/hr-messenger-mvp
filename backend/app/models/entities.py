@@ -204,6 +204,10 @@ class Conversation(Base):
     last_outbound_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     unread_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Ждёт ответа рекрутера: кандидат написал, когда диалог у человека, или бот передал диалог
+    needs_reply: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", index=True)
+    last_preview: Mapped[str | None] = mapped_column(String(200))
+    last_direction: Mapped[str | None] = mapped_column(String(3))
     created_at: Mapped[datetime] = _now_col()
 
     candidate: Mapped[Candidate] = relationship(lazy="selectin")

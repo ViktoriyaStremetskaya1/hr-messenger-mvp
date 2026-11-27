@@ -6,6 +6,7 @@
 """
 import logging
 import re
+from contextvars import ContextVar
 from dataclasses import asdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -34,11 +35,20 @@ from app.models import Application, Candidate, Conversation, Message, MessageTem
 from app.models.enums import STATUS_RANK
 from app.services import settings_store
 from app.services.audit import log_action
+from app.services.events import publish
 from app.services.phone import PhoneError, normalize_phone
 from app.tasks import enqueue, task
 
 log = logging.getLogger(__name__)
 WINDOW = timedelta(hours=24)
+# диалоги, изменённые при обработке одного webhook (для событий интерфейса); своё множество у каждой задачи
+_touched_var: ContextVar[set[int] | None] = ContextVar("touched_conversations", default=None)
+
+
+def _touch(conversation_id: int) -> None:
+    t = _touched_var.get()
+    if t is not None:
+        t.add(conversation_id)
 MAX_TRIES = 5
 
 STOP_REPLY = {
@@ -144,6 +154,10 @@ async def queue_message(
     t = now()
     conv.last_outbound_at = t
     conv.last_message_at = t
+    conv.last_preview = (body or "")[:200]
+    conv.last_direction = "out"
+    if user_id:
+        conv.needs_reply = False  # рекрутер ответил
     await db.flush()
     return msg
 
@@ -212,6 +226,7 @@ async def deliver_message(ctx: dict[str, Any], message_id: int) -> None:
             )
             log.warning("Сообщение %s не отправлено: %s", msg.id, msg.error)
         await db.commit()
+        await publish({"type": "message", "conversation_id": conv.id, "candidate_id": conv.candidate_id})  # type: ignore[union-attr]
 
 
 # ---------------- Входящие ----------------
@@ -248,6 +263,7 @@ async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
         return []  # повторная доставка webhook
     candidate = await find_or_create_candidate(db, m.contact_id, m.contact_name)
     conv = await get_or_create_conversation(db, candidate)
+    _touch(conv.id)
     msg = Message(conversation_id=conv.id, direction="in", type=m.type, body=m.text,
                   payload={"reply_id": m.reply_id, "raw": m.raw}, provider_message_id=m.provider_message_id,
                   status="received", created_at=m.timestamp)
@@ -255,6 +271,8 @@ async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
     if not conv.last_inbound_at or m.timestamp > conv.last_inbound_at:
         conv.last_inbound_at = m.timestamp
     conv.last_message_at = max(filter(None, [conv.last_message_at, m.timestamp]))
+    conv.last_preview = (m.text or "")[:200]
+    conv.last_direction = "in"
     conv.unread_count += 1
     for a in candidate.applications:
         if a.status in ("new", "in_campaign"):
@@ -289,13 +307,19 @@ async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
         return to_send
     if conv.mode == "bot":
         to_send += await on_inbound_hook(db, conv, msg, m)
+    from app.services.scenario_engine import is_active
+
+    # нужен ответ человека: диалог у рекрутера или бот этот диалог сейчас не ведёт
+    if conv.mode == "human" or not is_active(conv):
+        conv.needs_reply = True
     return to_send
 
 
-async def handle_status(db: AsyncSession, st: StatusUpdate) -> None:
+async def handle_status(db: AsyncSession, st: StatusUpdate) -> int | None:
     msg = (await db.execute(select(Message).where(Message.provider_message_id == st.provider_message_id))).scalar_one_or_none()
     if msg is None:
-        return
+        return None
+    _touch(msg.conversation_id)
     if st.status == "failed":
         msg.status = "failed"
         msg.failed_at = st.timestamp
@@ -317,13 +341,17 @@ async def process_webhook_event(ctx: dict[str, Any], event_id: int) -> None:
         if ev is None or ev.processed_at:
             return
         to_send: list[int] = []
+        touched: set[int] = set()
         try:
             inbound, statuses = get_adapter(ev.provider).parse_webhook(ev.raw)
+            touched_set: set[int] = set()
+            _touched_var.set(touched_set)
             for m in inbound:
                 to_send += await handle_inbound(db, m)
             for st in statuses:
                 await handle_status(db, st)
             ev.processed_at = now()
+            touched = set(touched_set)
             await db.commit()
         except Exception as e:  # noqa: BLE001
             await db.rollback()
@@ -334,6 +362,8 @@ async def process_webhook_event(ctx: dict[str, Any], event_id: int) -> None:
             if not ctx.get("inline"):
                 raise
             return
+    for cid in touched:
+        await publish({"type": "message", "conversation_id": cid})
     await send_queued(to_send)
 
 

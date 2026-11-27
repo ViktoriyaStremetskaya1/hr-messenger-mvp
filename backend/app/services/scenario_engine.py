@@ -218,6 +218,8 @@ def _goto(conv: Conversation, node_id: str | None) -> None:
 def _finish(conv: Conversation, outcome: str, reason: str | None = None) -> None:
     _ctx(conv, outcome=outcome, reason=reason, finished_at=datetime.now(UTC).isoformat(), waiting=False)
     conv.current_node = None
+    if outcome in ("handoff", "error"):
+        conv.needs_reply = True  # бот передал диалог — рекрутер должен ответить
 
 
 async def _application(db: AsyncSession, conv: Conversation) -> Application | None:
