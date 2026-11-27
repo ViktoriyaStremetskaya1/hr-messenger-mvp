@@ -125,3 +125,41 @@ export interface AuditEntry {
   ip: string | null;
   created_at: string;
 }
+
+export interface Message {
+  id: number;
+  direction: 'in' | 'out';
+  type: string;
+  body: string | null;
+  payload: { buttons?: { text?: string; title?: string }[]; out?: { buttons?: { title: string }[]; rows?: { title: string }[] } } & Record<string, unknown>;
+  status: 'queued' | 'sent' | 'delivered' | 'read' | 'failed' | 'received';
+  error: string | null;
+  sent_by_user_id: number | null;
+  campaign_id: number | null;
+  created_at: string;
+}
+export interface ConversationView {
+  conversation: { id: number; mode: 'bot' | 'human'; assignee_id: number | null; unread_count: number } | null;
+  messages: Message[];
+  window_open: boolean;
+  window_expires_at: string | null;
+  unsubscribed: boolean;
+}
+export interface Template {
+  id: number;
+  name: string;
+  language: 'ru' | 'kk';
+  category: 'MARKETING' | 'UTILITY';
+  status: 'APPROVED' | 'PENDING' | 'REJECTED' | 'LOCAL' | string;
+  header: string | null;
+  body: string;
+  footer: string | null;
+  buttons: { type?: string; text?: string }[];
+  params_count: number;
+}
+export interface ChannelStatus {
+  mode: 'mock' | 'live';
+  configured: boolean;
+  display_phone: string;
+  api_version: string;
+}

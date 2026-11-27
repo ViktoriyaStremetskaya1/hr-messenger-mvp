@@ -11,6 +11,7 @@ import {
   Select,
   Stack,
   Switch,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -20,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import { api, type Application, type Candidate } from '../api';
+import Chat from './Chat';
 import { notifyError, notifyOk, useTags, useUsers, vacancyLabel, useVacancies } from '../hooks';
 import { dt, screeningOptions, statusOptions } from '../labels';
 
@@ -80,6 +82,13 @@ export default function CandidateDrawer({ id, onClose }: { id: number | null; on
   return (
     <Drawer opened={id !== null} onClose={onClose} position="right" size="lg" title={c?.full_name ?? 'Кандидат'}>
       {!c ? <Loader /> : (
+        <Tabs defaultValue="profile" keepMounted={false}>
+        <Tabs.List mb="md">
+          <Tabs.Tab value="profile">Профиль</Tabs.Tab>
+          <Tabs.Tab value="chat">Переписка WhatsApp</Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="chat"><Chat candidateId={c.id} candidateName={c.full_name} /></Tabs.Panel>
+        <Tabs.Panel value="profile">
         <Stack>
           {c.unsubscribed_at && <Alert color="red">Отписался от рассылок {dt(c.unsubscribed_at)}</Alert>}
           <Group>
@@ -130,6 +139,8 @@ export default function CandidateDrawer({ id, onClose }: { id: number | null; on
           <Group gap="xs"><Badge variant="light">создан {dt(c.created_at)}</Badge>
             {c.last_touch_at && <Badge variant="light">последнее касание {dt(c.last_touch_at)}</Badge>}</Group>
         </Stack>
+        </Tabs.Panel>
+        </Tabs>
       )}
     </Drawer>
   );

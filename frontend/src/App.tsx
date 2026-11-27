@@ -7,6 +7,7 @@ import AuditPage from './pages/Audit';
 import CandidatesPage from './pages/Candidates';
 import LoginPage from './pages/Login';
 import SettingsPage from './pages/Settings';
+import TemplatesPage from './pages/Templates';
 import UsersPage from './pages/Users';
 import VacanciesPage from './pages/Vacancies';
 
@@ -31,6 +32,7 @@ export default function App() {
         <Route path="/candidates" element={<CandidatesPage />} />
         <Route path="/vacancies" element={<VacanciesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/templates" element={<TemplatesPage />} />
         {can('admin') && <Route path="/users" element={<UsersPage />} />}
         {can('admin', 'lead') && <Route path="/audit" element={<AuditPage />} />}
         <Route path="*" element={<Navigate to="/candidates" replace />} />

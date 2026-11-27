@@ -1,6 +1,7 @@
 import { AppShell, Badge, Burger, Group, NavLink, Stack, Text, Title, Tooltip } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import {
+  IconBrandWhatsapp,
   IconBriefcase,
   IconCalendar,
   IconChartFunnel,
@@ -13,9 +14,11 @@ import {
   IconUsers,
   IconUsersGroup,
 } from '@tabler/icons-react';
+import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router-dom';
 
+import { api, type ChannelStatus } from '../api';
 import { useAuth } from '../auth';
 import { ROLES } from '../labels';
 
@@ -31,11 +34,13 @@ export default function Layout() {
   const [opened, { toggle, close }] = useDisclosure();
   const { user, logout, can } = useAuth();
   const { pathname } = useLocation();
+  const ch = useQuery({ queryKey: ['channel'], queryFn: () => api<ChannelStatus>('/channel/status'), staleTime: 60_000 });
 
   const items: Item[] = [
     { to: '/candidates', label: 'Кандидаты', icon: <IconUsersGroup size={18} /> },
     { to: '/vacancies', label: 'Вакансии', icon: <IconBriefcase size={18} /> },
     { to: '/inbox', label: 'Чаты', icon: <IconMessages size={18} />, soon: 'Этап 6' },
+    { to: '/templates', label: 'Шаблоны WhatsApp', icon: <IconBrandWhatsapp size={18} /> },
     { to: '/scenarios', label: 'Сценарии', icon: <IconRoute size={18} />, soon: 'Этап 3' },
     { to: '/campaigns', label: 'Рассылки', icon: <IconSend size={18} />, soon: 'Этап 4' },
     { to: '/slots', label: 'Собеседования', icon: <IconCalendar size={18} />, soon: 'Этап 5' },
@@ -52,6 +57,11 @@ export default function Layout() {
           <Group gap="sm">
             <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" aria-label="Меню" />
             <Title order={4}>HR Messenger</Title>
+            {ch.data && (
+              <Tooltip label={ch.data.mode === 'mock' ? 'Сообщения уходят в мок WhatsApp, реальным людям ничего не отправляется' : 'WhatsApp Cloud API'}>
+                <Badge color={ch.data.mode === 'mock' ? 'blue' : 'green'} variant="light">{ch.data.mode === 'mock' ? 'Песочница' : 'WhatsApp: боевой'}</Badge>
+              </Tooltip>
+            )}
           </Group>
           <Group gap="xs" visibleFrom="xs">
             <Text size="sm">{user?.full_name}</Text>
