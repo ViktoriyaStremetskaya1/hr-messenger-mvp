@@ -1,0 +1,26 @@
+# HTTPS-прокси для боевого сервера (сервис caddy в docker-compose.yml, профиль prod).
+# Домен берётся из переменной DOMAIN в .env. Сертификат Let's Encrypt Caddy получает
+# и продлевает сам; для этого домен должен указывать на IP сервера, а порты 80 и 443 — быть открыты.
+
+{$DOMAIN} {
+	# Сжатие ответов
+	encode zstd gzip
+
+	# Заголовки безопасности. defer — применить после ответа приложения, чтобы не было дублей.
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "same-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Импорт файлов кандидатов — до 12 МБ (как в nginx внутри web)
+	request_body {
+		max_size 12MB
+	}
+
+	reverse_proxy web:80
+}
