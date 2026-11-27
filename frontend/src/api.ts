@@ -139,6 +139,7 @@ export interface Message {
   created_at: string;
 }
 export interface ConversationView {
+  scenario: ScenarioState | null;
   conversation: { id: number; mode: 'bot' | 'human'; assignee_id: number | null; unread_count: number } | null;
   messages: Message[];
   window_open: boolean;
@@ -162,4 +163,52 @@ export interface ChannelStatus {
   configured: boolean;
   display_phone: string;
   api_version: string;
+}
+
+export type Texts = string | { ru?: string; kk?: string };
+export interface ScenarioOption { id: string; label: { ru?: string; kk?: string }; next: string | null }
+export interface ScenarioRule { var: string; op: string; value?: string | number | string[]; next: string | null }
+export interface ScenarioNode {
+  type: string;
+  title?: string;
+  text?: Texts;
+  next?: string | null;
+  template?: string;
+  params?: string[];
+  options?: ScenarioOption[];
+  var?: string;
+  timeout_hours?: number | null;
+  on_timeout?: string | null;
+  expect?: 'text' | 'number';
+  rules?: ScenarioRule[];
+  else?: string | null;
+  screening?: 'fit' | 'unfit' | 'review' | null;
+  status?: string | null;
+  reserve?: boolean;
+  reason?: string;
+  empty?: string | null;
+}
+export interface ScenarioGraph { start: string; nodes: Record<string, ScenarioNode> }
+export interface Scenario {
+  id: number;
+  name: string;
+  kind: string;
+  description: string | null;
+  graph: ScenarioGraph;
+  version: number;
+  is_active: boolean;
+  updated_at: string;
+  running: number;
+}
+export interface LibraryItem { key: string; name: string; kind: string; description: string; graph: ScenarioGraph }
+export interface ScenarioState {
+  scenario_id: number;
+  scenario_name: string;
+  current_node: string | null;
+  current_title: string | null;
+  waiting: boolean;
+  outcome: string | null;
+  reason: string | null;
+  vacancy_id: number | null;
+  answers: Record<string, string>;
 }

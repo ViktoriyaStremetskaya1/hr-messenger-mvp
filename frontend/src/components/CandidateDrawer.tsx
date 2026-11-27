@@ -82,12 +82,12 @@ export default function CandidateDrawer({ id, onClose }: { id: number | null; on
   return (
     <Drawer opened={id !== null} onClose={onClose} position="right" size="lg" title={c?.full_name ?? 'Кандидат'}>
       {!c ? <Loader /> : (
-        <Tabs defaultValue="profile" keepMounted={false}>
+        <Tabs defaultValue="profile" keepMounted={false} onChange={() => refresh()}>
         <Tabs.List mb="md">
           <Tabs.Tab value="profile">Профиль</Tabs.Tab>
           <Tabs.Tab value="chat">Переписка WhatsApp</Tabs.Tab>
         </Tabs.List>
-        <Tabs.Panel value="chat"><Chat candidateId={c.id} candidateName={c.full_name} /></Tabs.Panel>
+        <Tabs.Panel value="chat"><Chat candidateId={c.id} candidateName={c.full_name} defaultVacancyId={c.applications[0]?.vacancy.id ?? null} /></Tabs.Panel>
         <Tabs.Panel value="profile">
         <Stack>
           {c.unsubscribed_at && <Alert color="red">Отписался от рассылок {dt(c.unsubscribed_at)}</Alert>}

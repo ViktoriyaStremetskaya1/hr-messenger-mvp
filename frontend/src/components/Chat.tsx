@@ -3,8 +3,8 @@ import { IconSend } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
-import { api, type ConversationView, type Message, type Template } from '../api';
-import { notifyError, useUsers } from '../hooks';
+import { api, type ConversationView, type Message, type Scenario, type Template } from '../api';
+import { notifyError, notifyOk, useUsers, useVacancies, vacancyLabel } from '../hooks';
 import { dt } from '../labels';
 
 const TICKS: Record<Message['status'], string> = {
@@ -34,7 +34,71 @@ function Bubble({ m, author }: { m: Message; author: string }) {
   );
 }
 
-export default function Chat({ candidateId, candidateName }: { candidateId: number; candidateName: string }) {
+const OUTCOME: Record<string, string> = {
+  completed: 'завершён', handoff: 'передан рекрутеру', no_reply: 'кандидат не ответил', stopped: 'остановлен',
+  unsubscribed: 'кандидат отписался', error: 'ошибка',
+};
+
+function ScenarioPanel({ candidateId, view, defaultVacancyId }: { candidateId: number; view: ConversationView; defaultVacancyId: number | null }) {
+  const qc = useQueryClient();
+  const scenarios = useQuery({ queryKey: ['scenarios'], queryFn: () => api<Scenario[]>('/scenarios') });
+  const vacancies = useVacancies();
+  const [sid, setSid] = useState<string | null>(null);
+  const [vid, setVid] = useState<string | null>(defaultVacancyId ? String(defaultVacancyId) : null);
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['conversation', candidateId] });
+  const call = useMutation({
+    mutationFn: ({ method, path, json }: { method: string; path: string; json?: object }) => api(path, { method, json }),
+    onSuccess: (_, v) => { refresh(); if (v.method === 'POST' && v.path.endsWith('/scenario')) notifyOk('Сценарий запущен'); },
+    onError: notifyError,
+  });
+  const st = view.scenario;
+  const active = !!st?.current_node;
+  const options = (scenarios.data ?? []).filter((s) => s.is_active && s.kind !== 'reminder').map((s) => ({ value: String(s.id), label: s.name }));
+
+  if (view.unsubscribed) return null;
+  return (
+    <Paper withBorder p="xs">
+      {active ? (
+        <Group justify="space-between" gap="xs">
+          <Text size="xs">
+            🤖 <b>{st!.scenario_name}</b> · шаг «{st!.current_title ?? st!.current_node}» {st!.waiting ? '· ждём ответа' : ''}
+            {view.conversation?.mode === 'human' && <Badge ml={6} size="xs" color="orange">бот на паузе</Badge>}
+          </Text>
+          <Group gap={4}>
+            {view.conversation?.mode === 'human' && (
+              <Button size="compact-xs" variant="light" onClick={() => call.mutate({ method: 'POST', path: `/candidates/${candidateId}/bot` })}>Вернуть боту</Button>
+            )}
+            <Button size="compact-xs" color="red" variant="subtle" onClick={() => call.mutate({ method: 'DELETE', path: `/candidates/${candidateId}/scenario` })}>Остановить</Button>
+          </Group>
+        </Group>
+      ) : (
+        <Stack gap={6}>
+          {st && (
+            <Text size="xs" c="dimmed">
+              Последний сценарий «{st.scenario_name}»: {OUTCOME[st.outcome ?? ''] ?? st.outcome}{st.reason ? ` — ${st.reason}` : ''}
+            </Text>
+          )}
+          <Group gap={6} wrap="nowrap" align="flex-end">
+            <Select size="xs" style={{ flex: 1 }} placeholder="Запустить сценарий…" data={options} value={sid} onChange={setSid} />
+            <Select size="xs" style={{ flex: 1 }} placeholder="Вакансия" searchable clearable value={vid} onChange={setVid}
+              data={(vacancies.data ?? []).filter((v) => v.is_active).map((v) => ({ value: String(v.id), label: vacancyLabel(v) }))} />
+            <Button size="xs" disabled={!sid} loading={call.isPending}
+              onClick={() => call.mutate({ method: 'POST', path: `/candidates/${candidateId}/scenario`, json: { scenario_id: Number(sid), vacancy_id: vid ? Number(vid) : null } })}>
+              Запустить
+            </Button>
+          </Group>
+        </Stack>
+      )}
+      {st && Object.keys(st.answers).length > 0 && (
+        <Group gap={4} mt={6}>
+          {Object.entries(st.answers).map(([k, v]) => <Badge key={k} size="xs" variant="outline" tt="none">{k}: {v}</Badge>)}
+        </Group>
+      )}
+    </Paper>
+  );
+}
+
+export default function Chat({ candidateId, candidateName, defaultVacancyId = null }: { candidateId: number; candidateName: string; defaultVacancyId?: number | null }) {
   const qc = useQueryClient();
   const users = useUsers();
   const [text, setText] = useState('');
@@ -81,6 +145,7 @@ export default function Chat({ candidateId, candidateName }: { candidateId: numb
           {v.conversation && ` · диалог ведёт: ${v.conversation.mode === 'bot' ? 'бот' : author(v.conversation.assignee_id)}`}
         </Text>
       )}
+      {v && <ScenarioPanel candidateId={candidateId} view={v} defaultVacancyId={defaultVacancyId} />}
       <ScrollArea h={360} viewportRef={viewport} type="auto">
         <Stack gap={8} p={4}>
           {v?.messages.map((m) => <Bubble key={m.id} m={m} author={author(m.sent_by_user_id)} />)}

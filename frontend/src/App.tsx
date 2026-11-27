@@ -8,6 +8,8 @@ import CandidatesPage from './pages/Candidates';
 import LoginPage from './pages/Login';
 import SettingsPage from './pages/Settings';
 import TemplatesPage from './pages/Templates';
+import ScenariosPage from './pages/Scenarios';
+import ScenarioEditor from './pages/ScenarioEditor';
 import UsersPage from './pages/Users';
 import VacanciesPage from './pages/Vacancies';
 
@@ -33,6 +35,8 @@ export default function App() {
         <Route path="/vacancies" element={<VacanciesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/templates" element={<TemplatesPage />} />
+        <Route path="/scenarios" element={<ScenariosPage />} />
+        <Route path="/scenarios/:id" element={<ScenarioEditor />} />
         {can('admin') && <Route path="/users" element={<UsersPage />} />}
         {can('admin', 'lead') && <Route path="/audit" element={<AuditPage />} />}
         <Route path="*" element={<Navigate to="/candidates" replace />} />
