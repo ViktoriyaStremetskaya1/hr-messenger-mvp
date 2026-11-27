@@ -267,3 +267,12 @@ export interface Interview {
   recruiter_name: string; vacancy_title: string | null; status: 'booked' | 'attended' | 'no_show' | 'cancelled' | 'rescheduled';
   booked_via: string; confirmed_at: string | null; reminded_24h_at: string | null; reminded_2h_at: string | null;
 }
+
+export interface InboxItem {
+  conversation_id: number; candidate_id: number; candidate_name: string; phone_masked: string; city: string | null;
+  last_preview: string | null; last_direction: 'in' | 'out' | null; last_message_at: string | null; unread_count: number;
+  needs_reply: boolean; mode: 'bot' | 'human'; assignee_id: number | null; assignee_name: string | null;
+  scenario_name: string | null; scenario_step: string | null; scenario_outcome: string | null;
+  window_open: boolean; unsubscribed: boolean; vacancy: string | null;
+}
+export type InboxCounts = Record<'all' | 'mine' | 'unassigned' | 'needs_reply' | 'unread' | 'bot' | 'human' | 'mine_needs_reply', number>;

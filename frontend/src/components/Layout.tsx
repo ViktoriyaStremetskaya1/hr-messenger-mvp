@@ -18,7 +18,10 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { NavLink as RouterLink, Outlet, useLocation } from 'react-router-dom';
 
-import { api, type ChannelStatus } from '../api';
+import { useEffect } from 'react';
+
+import { api, type ChannelStatus, type InboxCounts } from '../api';
+import { useLiveEvents } from '../live';
 import { useAuth } from '../auth';
 import { ROLES } from '../labels';
 
@@ -27,6 +30,7 @@ interface Item {
   label: string;
   icon: ReactNode;
   soon?: string;
+  badge?: number;
   show?: boolean;
 }
 
@@ -35,11 +39,15 @@ export default function Layout() {
   const { user, logout, can } = useAuth();
   const { pathname } = useLocation();
   const ch = useQuery({ queryKey: ['channel'], queryFn: () => api<ChannelStatus>('/channel/status'), staleTime: 60_000 });
+  useLiveEvents(!!user);
+  const counts = useQuery({ queryKey: ['inbox-counts'], queryFn: () => api<InboxCounts>('/inbox/counts'), refetchInterval: 30_000, enabled: !!user });
+  const waiting = counts.data?.needs_reply ?? 0;
+  useEffect(() => { document.title = waiting ? `(${waiting}) HR Messenger` : 'HR Messenger'; }, [waiting]);
 
   const items: Item[] = [
     { to: '/candidates', label: 'Кандидаты', icon: <IconUsersGroup size={18} /> },
     { to: '/vacancies', label: 'Вакансии', icon: <IconBriefcase size={18} /> },
-    { to: '/inbox', label: 'Чаты', icon: <IconMessages size={18} />, soon: 'Этап 6' },
+    { to: '/inbox', label: 'Чаты', icon: <IconMessages size={18} />, badge: waiting },
     { to: '/templates', label: 'Шаблоны WhatsApp', icon: <IconBrandWhatsapp size={18} /> },
     { to: '/scenarios', label: 'Сценарии', icon: <IconRoute size={18} /> },
     { to: '/campaigns', label: 'Рассылки', icon: <IconSend size={18} /> },
@@ -85,6 +93,7 @@ export default function Layout() {
                   to={i.to}
                   label={i.label}
                   leftSection={i.icon}
+                  rightSection={i.badge ? <Badge size="sm" color="orange" circle>{i.badge}</Badge> : undefined}
                   active={pathname.startsWith(i.to)}
                   onClick={close}
                 />

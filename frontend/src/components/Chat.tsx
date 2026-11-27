@@ -109,7 +109,7 @@ export default function Chat({ candidateId, candidateName, defaultVacancyId = nu
   const conv = useQuery({
     queryKey: ['conversation', candidateId],
     queryFn: () => api<ConversationView>(`/candidates/${candidateId}/conversation`),
-    refetchInterval: 3000,
+    refetchInterval: 15_000, // основное обновление — через события сервера (SSE)
   });
   const templates = useQuery({ queryKey: ['templates'], queryFn: () => api<Template[]>('/templates') });
   const approved = (templates.data ?? []).filter((t) => t.status === 'APPROVED');
@@ -142,7 +142,9 @@ export default function Chat({ candidateId, candidateName, defaultVacancyId = nu
           {v.window_open
             ? `Окно 24 ч открыто до ${dt(v.window_expires_at)} — можно писать свободно`
             : 'Окно 24 ч закрыто — первым сообщением можно отправить только одобренный шаблон'}
-          {v.conversation && ` · диалог ведёт: ${v.conversation.mode === 'bot' ? 'бот' : author(v.conversation.assignee_id)}`}
+          {v.conversation && (v.conversation.mode === 'bot' && v.scenario?.current_node
+            ? ' · диалог ведёт бот'
+            : ` · ответственный: ${v.conversation.assignee_id ? author(v.conversation.assignee_id) : 'не назначен'}`)}
         </Text>
       )}
       {v && <ScenarioPanel candidateId={candidateId} view={v} defaultVacancyId={defaultVacancyId} />}
