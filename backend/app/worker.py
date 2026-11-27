@@ -1,6 +1,6 @@
 """Воркер фоновых задач: arq app.worker.WorkerSettings"""
 from app.core.logging import setup_logging
-from app.services import messaging  # noqa: F401  регистрирует задачи
+from app.services import messaging, scenario_engine  # noqa: F401  регистрирует задачи
 from app.tasks import TASKS, redis_settings
 
 setup_logging()

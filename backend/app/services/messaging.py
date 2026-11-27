@@ -149,8 +149,21 @@ async def queue_message(
 
 
 async def send_queued(message_ids: list[int]) -> None:
-    for mid in message_ids:
-        await enqueue("deliver_message", mid, job_id=f"deliver:{mid}")
+    """Отправляет сообщения строго по очереди (важно для цепочек «текст → кнопки»)."""
+    if message_ids:
+        await enqueue("deliver_sequence", list(message_ids), job_id=f"deliver:{message_ids[0]}")
+
+
+@task
+async def deliver_sequence(ctx: dict[str, Any], message_ids: list[int]) -> None:
+    for i, mid in enumerate(message_ids):
+        try:
+            await deliver_message(ctx, mid)
+        except Retry as r:
+            rest = message_ids[i:]
+            defer = (r.defer_score or 30000) / 1000
+            await enqueue("deliver_sequence", rest, defer_seconds=defer, job_id=f"deliver:{rest[0]}:{int(now().timestamp())}")
+            return
 
 
 async def _rate_limit_ok(ctx: dict[str, Any]) -> bool:
@@ -184,10 +197,12 @@ async def deliver_message(ctx: dict[str, Any], message_id: int) -> None:
             msg.sent_at = now()
             if msg.campaign_id or msg.type == "template":
                 candidate.last_touch_at = now()  # type: ignore[union-attr]
-        elif res.retryable and not ctx.get("inline") and ctx.get("job_try", 1) < MAX_TRIES:
+        elif res.retryable and not ctx.get("inline") and int(msg.payload.get("attempts", 0)) + 1 < MAX_TRIES:
+            attempts = int(msg.payload.get("attempts", 0)) + 1
+            msg.payload = {**msg.payload, "attempts": attempts}
             msg.error = f"повтор: {res.error}"
             await db.commit()
-            raise Retry(defer=30 * ctx.get("job_try", 1))
+            raise Retry(defer=30 * attempts)
         else:
             msg.status = "failed"
             msg.failed_at = now()
@@ -221,8 +236,10 @@ async def find_or_create_candidate(db: AsyncSession, contact_id: str, name: str 
 
 
 async def on_inbound_hook(db: AsyncSession, conv: Conversation, msg: Message, inbound: InboundMessage) -> list[int]:
-    """Точка подключения движка сценариев (этап 3). Возвращает id исходящих сообщений для отправки."""
-    return []
+    """Передаёт входящее движку сценариев. Возвращает id исходящих сообщений для отправки."""
+    from app.services import scenario_engine
+
+    return await scenario_engine.handle_inbound(db, conv, inbound)
 
 
 async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
@@ -249,6 +266,9 @@ async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
     lang = candidate.language or "ru"
     stop_words = {w.lower() for w in await settings_store.get_value(db, "stop_words")}
     if m.type == "text" and word in stop_words:
+        if conv.current_node:  # остановить сценарий
+            conv.current_node = None
+            conv.context = {**(conv.context or {}), "outcome": "unsubscribed", "waiting": False}
         if not candidate.unsubscribed_at:
             candidate.unsubscribed_at = now()
             await log_action(db, user_id=None, action="candidate.unsubscribe", entity="candidate", entity_id=candidate.id,

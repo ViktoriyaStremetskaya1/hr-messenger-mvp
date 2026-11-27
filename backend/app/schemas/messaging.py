@@ -32,8 +32,21 @@ class ConversationOut(ORM):
     unread_count: int
 
 
+class ScenarioState(BaseModel):
+    scenario_id: int
+    scenario_name: str
+    current_node: str | None
+    current_title: str | None
+    waiting: bool
+    outcome: str | None
+    reason: str | None
+    vacancy_id: int | None
+    answers: dict[str, Any]
+
+
 class ConversationView(BaseModel):
     conversation: ConversationOut | None
+    scenario: ScenarioState | None = None
     messages: list[MessageOut]
     window_open: bool
     window_expires_at: datetime | None

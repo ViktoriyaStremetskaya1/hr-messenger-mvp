@@ -6,6 +6,7 @@ from app.models.entities import (  # noqa: F401
     Conversation,
     Message,
     MessageTemplate,
+    Scenario,
     WebhookEvent,
     ImportJob,
     Tag,

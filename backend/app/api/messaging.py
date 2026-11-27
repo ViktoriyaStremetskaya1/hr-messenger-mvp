@@ -9,8 +9,8 @@ from app.channels.base import OutTemplate, OutText
 from app.channels.registry import get_adapter
 from app.core.db import get_session
 from app.core.deps import client_ip, get_current_user, require_roles
-from app.models import Candidate, Conversation, Message, MessageTemplate, Role, User
-from app.schemas.messaging import ConversationOut, ConversationView, MessageOut, SendIn, TemplateIn, TemplateOut
+from app.models import Candidate, Conversation, Message, MessageTemplate, Role, Scenario, User
+from app.schemas.messaging import ConversationOut, ConversationView, MessageOut, ScenarioState, SendIn, TemplateIn, TemplateOut
 from app.services import messaging
 from app.services.audit import changes, log_action
 
@@ -46,8 +46,21 @@ async def get_conversation(candidate_id: int, db: AsyncSession = Depends(get_ses
         if conv.unread_count:
             conv.unread_count = 0
             await db.commit()
+    state = None
+    if conv and conv.scenario_id:
+        sc = await db.get(Scenario, conv.scenario_id)
+        if sc:
+            ctx = conv.context or {}
+            node = sc.graph.get("nodes", {}).get(conv.current_node or "", {})
+            state = ScenarioState(
+                scenario_id=sc.id, scenario_name=sc.name, current_node=conv.current_node, current_title=node.get("title"),
+                waiting=bool(ctx.get("waiting")), outcome=ctx.get("outcome"), reason=ctx.get("reason"),
+                vacancy_id=ctx.get("vacancy_id"),
+                answers={k: (v.get("label") if isinstance(v, dict) else v) for k, v in (ctx.get("vars") or {}).items()},
+            )
     return ConversationView(
         conversation=ConversationOut.model_validate(conv) if conv else None,
+        scenario=state,
         messages=[MessageOut.model_validate(m) for m in msgs],
         window_open=bool(conv and messaging.window_open(conv)),
         window_expires_at=messaging.window_expires_at(conv) if conv else None,
