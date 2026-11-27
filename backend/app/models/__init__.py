@@ -2,6 +2,8 @@ from app.models.entities import (  # noqa: F401
     AppSetting,
     Application,
     AuditLog,
+    Campaign,
+    CampaignRecipient,
     Candidate,
     Conversation,
     Message,
