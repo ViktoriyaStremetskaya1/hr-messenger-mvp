@@ -24,7 +24,7 @@ from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
-from app.wamock.templates import MOCK_TEMPLATES
+from app.whatsapp_templates import as_meta_records
 
 log = logging.getLogger("wa-mock")
 APP_SECRET = os.environ.get("WA_APP_SECRET", "")
@@ -49,6 +49,7 @@ class Store:
 
 
 store = Store()
+MOCK_TEMPLATES = as_meta_records()
 
 
 def sign(body: bytes) -> str:
@@ -146,6 +147,24 @@ async def templates(version: str, waba_id: str, authorization: str = Header(""))
     if ACCESS_TOKEN and authorization != f"Bearer {ACCESS_TOKEN}":
         raise err(190, "Invalid OAuth access token", 401)
     return {"data": MOCK_TEMPLATES, "paging": {}}
+
+
+@app.post("/{version}/{waba_id}/message_templates")
+async def create_template(version: str, waba_id: str, request: Request, authorization: str = Header("")):
+    """Подача шаблона на модерацию. В моке одобряется сразу."""
+    if ACCESS_TOKEN and authorization != f"Bearer {ACCESS_TOKEN}":
+        raise err(190, "Invalid OAuth access token", 401)
+    t = await request.json()
+    if any(x["name"] == t["name"] and x["language"] == t["language"] for x in MOCK_TEMPLATES):
+        raise err(100, "Content in this language already exists", 400)
+    body = next((c for c in t.get("components", []) if c["type"] == "BODY"), None)
+    if body is None:
+        raise err(100, "Template must have a BODY component")
+    if "{{" in body["text"] and not body.get("example"):
+        raise err(100, "Body variables require example values")
+    rec = {"id": f"mock_{t['name']}_{t['language']}", "status": "APPROVED", **t}
+    MOCK_TEMPLATES.append(rec)
+    return {"id": rec["id"], "status": "APPROVED", "category": t.get("category")}
 
 
 # ---------- UI «телефон кандидата» ----------

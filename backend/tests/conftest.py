@@ -30,6 +30,7 @@ from app.core.security import hash_password  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import User  # noqa: E402
 from app.wamock import main as wamock  # noqa: E402
+from app.whatsapp_templates import as_meta_records  # noqa: E402
 
 PASSWORD = "Passw0rd!"
 
@@ -105,6 +106,7 @@ async def lead(users):
 async def wa_mock():
     """Реальный адаптер Cloud API, но запросы уходят в мок по ASGI (без сети)."""
     wamock.store.chats.clear()
+    wamock.MOCK_TEMPLATES[:] = as_meta_records()
     client = AsyncClient(transport=ASGITransport(app=wamock.app), base_url="http://wamock")
     set_adapter_override("whatsapp", WhatsAppCloudAdapter(get_settings(), client=client))
     yield wamock.store

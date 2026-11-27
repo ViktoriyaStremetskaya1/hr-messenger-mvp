@@ -129,7 +129,7 @@ async def test_template_send_and_status_lifecycle(admin, anon, wa_mock):
     assert r.status_code == 201, r.text
     view = (await admin.get(f"/api/candidates/{c['id']}/conversation")).json()
     m = view["messages"][0]
-    assert m["status"] == "sent" and m["body"].startswith("Здравствуйте, Айгуль! Банк приглашает вас на вакансию «Операционист»")
+    assert m["status"] == "sent" and m["body"].startswith("Здравствуйте, Айгуль! Приглашаем вас на вакансию «Операционист» в г. Алматы")
     assert m["payload"]["buttons"][0]["text"] == "Да, интересно"
     # мок действительно получил сообщение
     assert wa_mock.chats[WA]["messages"][0]["kind"] == "template"
@@ -222,3 +222,41 @@ async def test_phone_not_logged_in_webhook_errors(anon, db, caplog):
     assert "7771234567" not in caplog.text
     row = (await db.execute(select(Candidate))).scalar_one()
     assert "7771234567" not in row.phone_enc
+
+
+async def test_push_templates_to_meta(capsys):
+    from httpx import ASGITransport, AsyncClient
+
+    from app import push_templates
+    from app.wamock import main as wamock
+    from app.whatsapp_templates import TEMPLATES
+
+    wamock.MOCK_TEMPLATES[:] = [t for t in wamock.MOCK_TEMPLATES if t["name"] != "reserve_revival"]
+
+    def client():
+        return AsyncClient(transport=ASGITransport(app=wamock.app), base_url="http://wamock")
+
+    assert await push_templates.main(apply=False, client=client()) == 0
+    out = capsys.readouterr().out
+    assert "+ reserve_revival [ru]" in out and "= vacancy_offer [ru] уже есть" in out
+    assert len(wamock.MOCK_TEMPLATES) == len(TEMPLATES) - 2  # предпросмотр ничего не отправил
+    assert await push_templates.main(apply=True, client=client()) == 0
+    assert "✓ reserve_revival [kk] отправлен" in capsys.readouterr().out
+    assert len(wamock.MOCK_TEMPLATES) == len(TEMPLATES)
+
+
+def test_template_definitions_follow_meta_rules():
+    import re
+
+    from app.whatsapp_templates import TEMPLATES
+
+    keys = [(t.name, t.language) for t in TEMPLATES]
+    assert len(keys) == len(set(keys))
+    for t in TEMPLATES:
+        assert re.fullmatch(r"[a-z0-9_]+", t.name)
+        nums = [int(n) for n in re.findall(r"\{\{(\d+)\}\}", t.body)]
+        assert nums == list(range(1, len(nums) + 1)), t.name  # переменные по порядку
+        assert len(t.examples) == len(nums), t.name  # к каждой — пример
+        assert not t.body.startswith("{{"), t.name
+        assert not t.body.rstrip(".?!").endswith("}}"), t.name
+        assert len(t.buttons) <= 3 and all(len(b) <= 25 for b in t.buttons), t.name
