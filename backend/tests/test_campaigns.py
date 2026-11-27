@@ -84,6 +84,15 @@ async def test_campaign_end_to_end(admin, anon, env, db, wa_mock):
     await post_webhook(anon, quick_reply(sent_to[0], "Да, интересно"))
     st = (await admin.get(f"/api/campaigns/{camp['id']}")).json()["stats"]
     assert st["delivered"] == 3 and st["read"] == 3 and st["replied"] == 1
+    assert st["screening_fit"] == 0 and st["booked"] == 0
+    # кандидат проходит скрининг до конца
+    from tests.wa_helpers import button_reply
+    for title in ("Да", "Да", "До 1 года", "В течение недели"):
+        btn = next(b for b in [m for m in wa_mock.chats[sent_to[0]]["messages"] if m.get("buttons")][-1]["buttons"] if b["title"] == title)
+        mock_store.chat(sent_to[0])["last_inbound"] = time.time()
+        await post_webhook(anon, button_reply(sent_to[0], btn["id"], title))
+    st = (await admin.get(f"/api/campaigns/{camp['id']}")).json()["stats"]
+    assert st["replied"] == 1 and st["screening_fit"] == 1 and st["booked"] == 1
     # кандидаты помечены касанием — повторная рассылка сразу всех пропустит по частоте
     camp2 = (await admin.post("/api/campaigns", json=body(env, name="Повтор"))).json()
     await admin.post(f"/api/campaigns/{camp2['id']}/launch")
@@ -168,3 +177,13 @@ async def test_campaign_for_selected_candidates(admin, env, wa_mock, db):
     assert s["stats"]["sent"] == 2
     c = (await db.execute(select(Campaign))).scalar_one()
     assert c.status == "done"
+
+
+async def test_old_results_not_counted_in_funnel(admin, env, db):
+    from app.models import Application
+    await db.execute(update(Application).values(screening_result="fit", status="booked"))
+    await db.commit()
+    camp = (await admin.post("/api/campaigns", json=body(env, segment={"vacancy_ids": [env["vac"]["id"]]}))).json()
+    await admin.post(f"/api/campaigns/{camp['id']}/launch")
+    st = (await admin.get(f"/api/campaigns/{camp['id']}")).json()["stats"]
+    assert st["sent"] == 5 and st["screening_fit"] == 0 and st["booked"] == 0

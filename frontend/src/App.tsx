@@ -10,6 +10,8 @@ import SettingsPage from './pages/Settings';
 import TemplatesPage from './pages/Templates';
 import ScenariosPage from './pages/Scenarios';
 import ScenarioEditor from './pages/ScenarioEditor';
+import CampaignsPage from './pages/Campaigns';
+import CampaignDetail from './pages/CampaignDetail';
 import UsersPage from './pages/Users';
 import VacanciesPage from './pages/Vacancies';
 
@@ -37,6 +39,8 @@ export default function App() {
         <Route path="/templates" element={<TemplatesPage />} />
         <Route path="/scenarios" element={<ScenariosPage />} />
         <Route path="/scenarios/:id" element={<ScenarioEditor />} />
+        <Route path="/campaigns" element={<CampaignsPage />} />
+        <Route path="/campaigns/:id" element={<CampaignDetail />} />
         {can('admin') && <Route path="/users" element={<UsersPage />} />}
         {can('admin', 'lead') && <Route path="/audit" element={<AuditPage />} />}
         <Route path="*" element={<Navigate to="/candidates" replace />} />

@@ -163,22 +163,10 @@ async def stats(db: AsyncSession, campaign_id: int) -> dict[str, Any]:
         .where(CampaignRecipient.campaign_id == campaign_id).group_by(Message.status))).all()
     ms = dict(msg_rows)
     delivered = ms.get("delivered", 0) + ms.get("read", 0)
-    # ответил: есть входящее после отправки первого сообщения рассылки
-    replied = (await db.execute(
-        select(func.count(func.distinct(CampaignRecipient.candidate_id)))
-        .select_from(CampaignRecipient)
-        .join(Conversation, Conversation.candidate_id == CampaignRecipient.candidate_id)
-        .join(Message, Message.conversation_id == Conversation.id)
-        .where(CampaignRecipient.campaign_id == campaign_id, CampaignRecipient.status == "sent",
-               Message.direction == "in",
-               # время входящего от Meta — с точностью до секунды
-               Message.created_at >= func.date_trunc("second", CampaignRecipient.processed_at)))).scalar_one()
-    from app.models import Application
-
-    fit = (await db.execute(select(func.count()).select_from(Application).where(
-        Application.campaign_id == campaign_id, Application.screening_result == "fit"))).scalar_one()
-    booked = (await db.execute(select(func.count()).select_from(Application).where(
-        Application.campaign_id == campaign_id, Application.status.in_(["booked", "attended", "no_show", "offer", "hired"])))).scalar_one()
+    agg = (await db.execute(select(
+        func.count(CampaignRecipient.replied_at), func.count().filter(CampaignRecipient.screening_result == "fit"),
+        func.count(CampaignRecipient.booked_at)).where(CampaignRecipient.campaign_id == campaign_id))).one()
+    replied, fit, booked = agg
     total = sum(by_status.values())
     return {
         "total": total, "queued": by_status.get("queued", 0), "sent": by_status.get("sent", 0),

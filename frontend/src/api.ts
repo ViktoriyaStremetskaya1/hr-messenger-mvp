@@ -212,3 +212,46 @@ export interface ScenarioState {
   vacancy_id: number | null;
   answers: Record<string, string>;
 }
+
+export interface CampaignSegment {
+  candidate_ids?: number[];
+  cities?: string[];
+  vacancy_ids?: number[];
+  statuses?: string[];
+  screening?: string[];
+  is_reserve?: boolean | null;
+  tag_ids?: number[];
+  languages?: string[];
+  sources?: string[];
+}
+export interface CampaignStats {
+  total: number; queued: number; sent: number; skipped: number; skipped_by_reason: Record<string, number>;
+  failed: number; delivered: number; read: number; replied: number; screening_fit: number; booked: number;
+}
+export interface Campaign {
+  id: number;
+  name: string;
+  scenario_id: number;
+  vacancy_id: number | null;
+  segment: CampaignSegment;
+  status: 'draft' | 'scheduled' | 'running' | 'paused' | 'done' | 'cancelled';
+  scheduled_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_by: number | null;
+  created_at: string;
+  stats: Partial<CampaignStats>;
+}
+export interface CampaignRecipient {
+  id: number;
+  candidate_id: number;
+  candidate_name: string;
+  status: 'queued' | 'sent' | 'skipped' | 'failed';
+  skip_reason: string | null;
+  error: string | null;
+  message_status: string | null;
+  processed_at: string | null;
+}
+export interface SegmentPreview {
+  total: number; eligible: number; excluded: Record<string, number>; sample: string[];
+}

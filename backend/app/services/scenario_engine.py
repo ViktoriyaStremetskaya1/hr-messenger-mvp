@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.channels.base import Button, InboundMessage, ListRow, OutButtons, OutList, OutTemplate, OutText
 from app.core.db import SessionLocal
-from app.models import Application, Candidate, Conversation, MessageTemplate, Scenario, Vacancy
+from app.models import Application, CampaignRecipient, Candidate, Conversation, MessageTemplate, Scenario, Vacancy
 from app.services import messaging, policy, settings_store
 from app.services.audit import log_action
 from app.tasks import enqueue, task
@@ -236,6 +236,14 @@ async def _store_answer(db: AsyncSession, conv: Conversation, var: str | None, v
         app.screening_answers = answers
 
 
+async def campaign_recipient(db: AsyncSession, conv: Conversation) -> CampaignRecipient | None:
+    cid = (conv.context or {}).get("campaign_id")
+    if not cid:
+        return None
+    return (await db.execute(select(CampaignRecipient).where(CampaignRecipient.campaign_id == cid,
+                                                               CampaignRecipient.candidate_id == conv.candidate_id))).scalar_one_or_none()
+
+
 # ---------------- Запуск ----------------
 
 async def load_graph(db: AsyncSession, conv: Conversation) -> dict[str, Any] | None:
@@ -416,6 +424,8 @@ async def run(db: AsyncSession, conv: Conversation) -> list[int]:
                 app = await _application(db, conv)
                 if node.get("screening") and app:
                     app.screening_result = node["screening"]
+                if node.get("screening") and (rcp := await campaign_recipient(db, conv)):
+                    rcp.screening_result = node["screening"]
                 if node.get("status") and app:
                     app.status = node["status"]
                 if "reserve" in node:
@@ -428,6 +438,8 @@ async def run(db: AsyncSession, conv: Conversation) -> list[int]:
             elif t in ("handoff", "booking"):
                 msg = text or tr(HANDOFF_DEFAULT, lang)
                 ids.append(await _send(db, conv, OutText(msg)))
+                if t == "booking" and (rcp := await campaign_recipient(db, conv)) and not rcp.booked_at:
+                    rcp.booked_at = datetime.now(UTC)  # до этапа 5 — «готов к записи»
                 _finish(conv, "handoff", node.get("reason") or ("запись на собеседование" if t == "booking" else None))
                 conv.mode = "human"
             elif t == "end":

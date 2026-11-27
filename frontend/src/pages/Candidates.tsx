@@ -19,6 +19,7 @@ import { useDebouncedValue } from '@mantine/hooks';
 import { IconChevronDown, IconFileImport, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 import { api, qs, type Candidate, type Page } from '../api';
 import CandidateCreateModal from '../components/CandidateCreateModal';
@@ -33,6 +34,7 @@ const EMPTY = { q: '', city: null as string | null, vacancy_id: null as string |
 
 export default function CandidatesPage() {
   const qc = useQueryClient();
+  const nav = useNavigate();
   const [f, setF] = useState(EMPTY);
   const [page, setPage] = useState(1);
   const [q] = useDebouncedValue(f.q, 300);
@@ -117,6 +119,8 @@ export default function CandidatesPage() {
             </Button>
           </Menu.Target>
           <Menu.Dropdown>
+            <Menu.Item onClick={() => nav(`/campaigns?ids=${selected.join(',')}`)}>Создать рассылку по выбранным</Menu.Item>
+            <Menu.Divider />
             <Menu.Item onClick={() => bulk.mutate({ action: 'set_reserve' })}>Добавить в резерв</Menu.Item>
             <Menu.Item onClick={() => bulk.mutate({ action: 'unset_reserve' })}>Убрать из резерва</Menu.Item>
             <Menu.Divider />

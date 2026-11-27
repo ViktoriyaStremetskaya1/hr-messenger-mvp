@@ -296,3 +296,7 @@ class CampaignRecipient(Base):
     error: Mapped[str | None] = mapped_column(Text)
     message_id: Mapped[int | None] = mapped_column(BigInteger)  # первое исходящее (шаблон)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Результаты именно этой рассылки (для воронки)
+    replied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    screening_result: Mapped[str | None] = mapped_column(String(8))
+    booked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -259,6 +259,10 @@ async def handle_inbound(db: AsyncSession, m: InboundMessage) -> list[int]:
     for a in candidate.applications:
         if a.status in ("new", "in_campaign"):
             a.status = "replied"
+    from app.services.scenario_engine import campaign_recipient
+
+    if (rcp := await campaign_recipient(db, conv)) and not rcp.replied_at:
+        rcp.replied_at = m.timestamp  # для воронки рассылки
     await db.flush()
 
     to_send: list[int] = []
