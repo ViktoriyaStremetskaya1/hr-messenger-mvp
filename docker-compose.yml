@@ -60,14 +60,37 @@ services:
       - "${MOCK_PORT:-9000}:9000"
     restart: unless-stopped
 
+  # Веб-интерфейс. Порт открыт только на самом сервере (127.0.0.1): снаружи вход через Caddy.
+  # Для доступа с другого компьютера локальной сети без Caddy: WEB_BIND=0.0.0.0 в .env.
   web:
     build: ./frontend
     ports:
-      - "${WEB_PORT:-8080}:80"
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-8080}:80"
     depends_on:
       - api
+    restart: unless-stopped
+
+  # Боевой режим на сервере: HTTPS-прокси с автоматическим сертификатом Let's Encrypt.
+  # Запуск: docker compose --profile prod up -d. Домен берётся из DOMAIN в .env.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    environment:
+      DOMAIN: ${DOMAIN:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
+  caddy_data:     # сертификаты HTTPS — не удалять, иначе Let's Encrypt может временно отказать в выдаче
+  caddy_config:

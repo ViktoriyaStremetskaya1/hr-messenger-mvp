@@ -30,6 +30,11 @@ docker compose exec api python -m app.seed   # тестовые данные (п
 
 Остановить: `docker compose down`. Удалить вместе с данными: `docker compose down -v`.
 
+## Развёртывание на сервере
+
+Боевой запуск на VPS с Ubuntu 24.04 (сервер в Казахстане), своим доменом и HTTPS — одной командой.
+Пошаговая инструкция для не-программиста, обновление и резервные копии: [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Локальная разработка
 
 Нужны Python 3.12+, Node 22, PostgreSQL 16, Redis.
@@ -97,7 +102,9 @@ backend/
 frontend/src/
   pages/             страницы
   components/        карточка кандидата, мастер импорта, layout
-scripts/gen-env.sh   генерация .env
+scripts/gen-env.sh   генерация .env (с DOMAIN=... — для боевого сервера)
+scripts/server-setup.sh, update.sh, backup.sh, restore.sh   установка и обслуживание сервера
+deploy/Caddyfile     HTTPS-прокси (профиль prod)
 ```
 
 ---
